@@ -67,27 +67,29 @@ class Log2CDR(object):
                         i = log_entry.msg.find('CALLERID(all)="')
                         if i != -1:
                             if log_entry.event_id in self.calls:
-                                sys.stderr.write('Currently cannot handle reused event IDs: {0}\n'.format(log_entry.event_id))
-                                sys.stderr.flush()
-                                self.err_count += 1
-                            else:
-                                clid_start_i = i + len('CALLERID(all)=')
-                                clid_end_i = log_entry.msg.find('")', clid_start_i)
-                                clid = log_entry.msg[clid_start_i:clid_end_i]
+                                if DEBUG:
+                                    sys.stderr.write('Reused event IDs: {0}\n'.format(log_entry.event_id))
+                                    sys.stderr.flush()
 
-                                chn_start_i = log_entry.msg.find('Set("SIP/') + len('Set("')
-                                chn_end_i = log_entry.msg.find('", "', chn_start_i)
-                                chn = log_entry.msg[chn_start_i:chn_end_i]
+                                    self.err_count += 1
+                                    del self.calls[log_entry.event_id]
+                            clid_start_i = i + len('CALLERID(all)=')
+                            clid_end_i = log_entry.msg.find('")', clid_start_i)
+                            clid = log_entry.msg[clid_start_i:clid_end_i]
 
-                                # source extension
-                                src = chn.split('/')[-1].split('-')[0]
+                            chn_start_i = log_entry.msg.find('Set("SIP/') + len('Set("')
+                            chn_end_i = log_entry.msg.find('", "', chn_start_i)
+                            chn = log_entry.msg[chn_start_i:chn_end_i]
 
-                                self.calls[log_entry.event_id] = Call(
-                                    log_entry.event_id,
-                                    log_entry.tstamp,
-                                    clid,
-                                    src,
-                                    chn)
+                            # source extension
+                            src = chn.split('/')[-1].split('-')[0]
+
+                            self.calls[log_entry.event_id] = Call(
+                                log_entry.event_id,
+                                log_entry.tstamp,
+                                clid,
+                                src,
+                                chn)
 
 
                         # accountcode
@@ -112,7 +114,8 @@ class Log2CDR(object):
                                     call = self.calls[log_entry.event_id]
                                     if call.answered:
                                         call.end_time = log_entry.tstamp
-                                        csvwriter.writerow([call.start_time,
+                                        csvwriter.writerow([call.id,
+                                                            call.start_time,
                                                             call.clid,
                                                             call.src,
                                                             call.dst,
@@ -131,14 +134,15 @@ class Log2CDR(object):
                         # dst
                         if log_entry.msg.find('-- Called SIP/') != -1:
                             #print('Found receiver: id={0}'.format(log_entry.event_id) + log_entry.msg)
-                            splits = log_entry.msg.split('/')
-                            if len(splits) != 3:
-                                # not an outgoing call
-                                continue
                             ph_dst = log_entry.msg.split('/')[-1][:-1]
                             try:
                                 call = self.calls[log_entry.event_id]
                                 call.dst = ph_dst
+                                splits = log_entry.msg.split('/')
+                                if len(splits) != 3:
+                                    # not an outgoing call
+                                    del self.calls[log_entry.event_id]
+                                    continue
                             except KeyError:
                                 if DEBUG:
                                     sys.stderr.write('Processing receiver before call start:\n{0}\n'.format(line))
