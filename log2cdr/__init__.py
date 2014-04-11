@@ -5,6 +5,7 @@ from datetime import datetime
 import sys
 
 DEBUG = False
+#DEBUG = True
 
 class Call(object):
     def __init__(self, id, start_time, clid, src, channel, accountcode=None, dst=None, end_time=None, answered=False):
@@ -64,7 +65,8 @@ class Log2CDR(object):
                         break
                     if log_entry.src == 'pbx.c':
                         # src, channel and caller ID
-                        i = log_entry.msg.find('CALLERID(all)="')
+                        # i = log_entry.msg.find('CALLERID(all)="')
+                        i = log_entry.msg.find('"Using CallerID "')
                         if i != -1:
                             if log_entry.event_id in self.calls:
                                 if DEBUG:
@@ -73,6 +75,7 @@ class Log2CDR(object):
 
                                     self.err_count += 1
                                     del self.calls[log_entry.event_id]
+                            """
                             clid_start_i = i + len('CALLERID(all)=')
                             clid_end_i = log_entry.msg.find('")', clid_start_i)
                             clid = log_entry.msg[clid_start_i:clid_end_i]
@@ -83,7 +86,18 @@ class Log2CDR(object):
 
                             # source extension
                             src = chn.split('/')[-1].split('-')[0]
+                            """
+                            clid_start_i = i + len('"Using CallerID "')
+                            clid_end_i = log_entry.msg.find('" <', clid_start_i)
+                            clid = log_entry.msg[clid_start_i:clid_end_i]
 
+                            chn_start_i = log_entry.msg.find('NoOp("SIP/') + len('NoOp("')
+                            chn_end_i = log_entry.msg.find('", "', chn_start_i)
+                            chn = log_entry.msg[chn_start_i:chn_end_i]
+
+                            # source extension
+                            src = chn.split('/')[-1].split('-')[0]
+                            
                             self.calls[log_entry.event_id] = Call(
                                 log_entry.event_id,
                                 log_entry.tstamp,
